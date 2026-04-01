@@ -3,68 +3,9 @@
 import { Header } from '@/components/header'
 import { ProductCard } from '@/components/product-card'
 import { Button } from '@/components/ui/button'
+import { ALL_PRODUCTS } from '@/lib/mock-products'
 import Link from 'next/link'
 import { Sparkles, Truck, Shield } from 'lucide-react'
-
-// Mock data - will be replaced with API calls in the backend
-const FEATURED_PRODUCTS = [
-  {
-    id: '1',
-    name: 'Premium Wireless Headphones',
-    price: 199.99,
-    image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=500&h=500&fit=crop',
-    category: 'Electronics',
-  },
-  {
-    id: '2',
-    name: 'Ultra HD 4K Monitor',
-    price: 349.99,
-    image: 'https://images.unsplash.com/photo-1527864550417-7fd91fc51a46?w=500&h=500&fit=crop',
-    category: 'Electronics',
-  },
-  {
-    id: '3',
-    name: 'Professional Camera Bag',
-    price: 129.99,
-    image: 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=500&h=500&fit=crop',
-    category: 'Accessories',
-  },
-  {
-    id: '4',
-    name: 'Mechanical Gaming Keyboard',
-    price: 159.99,
-    image: 'https://images.unsplash.com/photo-1587829191301-6d53e0a1f3f3?w=500&h=500&fit=crop',
-    category: 'Electronics',
-  },
-  {
-    id: '5',
-    name: 'Portable Power Bank 20000mAh',
-    price: 49.99,
-    image: 'https://images.unsplash.com/photo-1609091839311-d5365f9ff1c5?w=500&h=500&fit=crop',
-    category: 'Accessories',
-  },
-  {
-    id: '6',
-    name: 'Ergonomic Desk Chair',
-    price: 299.99,
-    image: 'https://images.unsplash.com/photo-1579658291049-0b46292eadaa?w=500&h=500&fit=crop',
-    category: 'Furniture',
-  },
-  {
-    id: '7',
-    name: 'USB-C Hub Pro',
-    price: 79.99,
-    image: 'https://images.unsplash.com/photo-1625948515291-69613efd103f?w=500&h=500&fit=crop',
-    category: 'Accessories',
-  },
-  {
-    id: '8',
-    name: '27" IPS LED Monitor',
-    price: 279.99,
-    image: 'https://images.unsplash.com/photo-1586253408844-8bb9e1f5a5e0?w=500&h=500&fit=crop',
-    category: 'Electronics',
-  },
-]
 
 export default function Home() {
   return (
@@ -142,14 +83,18 @@ export default function Home() {
       <section>
         <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-24 lg:px-8">
           <div className="mb-12">
-            <h2 className="text-balance text-3xl font-bold">Featured Products</h2>
+            <h2 className="text-balance text-3xl font-bold">All Products</h2>
             <p className="mt-2 text-muted-foreground">
-              Handpicked selection of our best-selling items
+              Browse our full catalog of {ALL_PRODUCTS.length} items — use filters on the{' '}
+              <Link href="/products" className="text-accent underline-offset-4 hover:underline">
+                products page
+              </Link>
+              .
             </p>
           </div>
 
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            {FEATURED_PRODUCTS.map((product) => (
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {ALL_PRODUCTS.map((product) => (
               <ProductCard key={product.id} {...product} />
             ))}
           </div>
