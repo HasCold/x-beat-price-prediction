@@ -3,11 +3,39 @@
 import { Header } from '@/components/header'
 import { ProductCard } from '@/components/product-card'
 import { Button } from '@/components/ui/button'
-import { ALL_PRODUCTS } from '@/lib/mock-products'
+import { shophubGetProducts } from '@/lib/api'
+import { listItemToCardProps } from '@/lib/shophub-mappers'
 import Link from 'next/link'
 import { Sparkles, Truck, Shield } from 'lucide-react'
+import { useEffect, useState } from 'react'
 
 export default function Home() {
+  const [totalCatalog, setTotalCatalog] = useState<number | null>(null)
+  const [products, setProducts] = useState<ReturnType<typeof listItemToCardProps>[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    setError(null)
+    shophubGetProducts({ page: 1, limit: 24 })
+      .then((res) => {
+        if (cancelled) return
+        setProducts(res.data.map(listItemToCardProps))
+        setTotalCatalog(res.pagination?.total ?? res.data.length)
+      })
+      .catch((e: Error) => {
+        if (!cancelled) setError(e.message || 'Failed to load products')
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   return (
     <div className="min-h-screen bg-background">
       <Header />
@@ -79,25 +107,45 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Featured Products */}
+      {/* Catalog preview */}
       <section>
         <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-24 lg:px-8">
           <div className="mb-12">
             <h2 className="text-balance text-3xl font-bold">All Products</h2>
             <p className="mt-2 text-muted-foreground">
-              Browse our full catalog of {ALL_PRODUCTS.length} items — use filters on the{' '}
-              <Link href="/products" className="text-accent underline-offset-4 hover:underline">
-                products page
-              </Link>
-              .
+              {loading && 'Loading catalog…'}
+              {!loading && error && (
+                <>
+                  Could not load products ({error}). Start the API on port 5000 or set{' '}
+                  <code className="text-xs">NEXT_PUBLIC_API_URL</code>.
+                </>
+              )}
+              {!loading && !error && totalCatalog != null && (
+                <>
+                  Browse our full catalog of {totalCatalog} items — use filters on the{' '}
+                  <Link href="/products" className="text-accent underline-offset-4 hover:underline">
+                    products page
+                  </Link>
+                  .
+                </>
+              )}
             </p>
           </div>
 
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {ALL_PRODUCTS.map((product) => (
-              <ProductCard key={product.id} {...product} />
-            ))}
-          </div>
+          {error ? null : (
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {loading
+                ? Array.from({ length: 6 }).map((_, i) => (
+                    <div
+                      key={i}
+                      className="h-80 animate-pulse rounded-lg border border-border bg-muted"
+                    />
+                  ))
+                : products.map((product) => (
+                    <ProductCard key={product.slug} {...product} />
+                  ))}
+            </div>
+          )}
         </div>
       </section>
 

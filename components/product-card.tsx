@@ -8,14 +8,17 @@ import Link from 'next/link'
 
 interface ProductCardProps {
   id: string
+  /** When set, product links use this (API slugs). Otherwise `id` is used (mock numeric ids). */
+  slug?: string
   name: string
   price: number
   image: string
   category?: string
 }
 
-export function ProductCard({ id, name, price, image, category }: ProductCardProps) {
+export function ProductCard({ id, slug, name, price, image, category }: ProductCardProps) {
   const addToCart = useCartStore((state) => state.addToCart)
+  const hrefSegment = slug ?? id
 
   const handleAddToCart = () => {
     addToCart({
@@ -30,7 +33,7 @@ export function ProductCard({ id, name, price, image, category }: ProductCardPro
   return (
     <div className="group flex flex-col rounded-lg border border-border bg-card overflow-hidden transition-all hover:border-accent hover:shadow-lg">
       {/* Image */}
-      <Link href={`/product/${id}`}>
+      <Link href={`/product/${encodeURIComponent(hrefSegment)}`}>
         <div className="relative h-64 w-full overflow-hidden bg-muted flex items-center justify-center">
           <Image
             src={image}
@@ -53,7 +56,7 @@ export function ProductCard({ id, name, price, image, category }: ProductCardPro
             {category}
           </p>
         )}
-        <Link href={`/product/${id}`}>
+        <Link href={`/product/${encodeURIComponent(hrefSegment)}`}>
           <h3 className="text-sm font-semibold group-hover:text-accent transition-colors">
             {name}
           </h3>

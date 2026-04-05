@@ -4,9 +4,12 @@ import { Header } from '@/components/header'
 import { Button } from '@/components/ui/button'
 import { ProductCard } from '@/components/product-card'
 import { useCartStore } from '@/lib/store'
+import { shophubGetProductBySlug, shophubGetRelatedProducts } from '@/lib/api'
+import { detailToViewModel, listItemToCardProps } from '@/lib/shophub-mappers'
+import type { DetailViewModel } from '@/lib/shophub-mappers'
 import Image from 'next/image'
 import Link from 'next/link'
-import { useState, use } from 'react'
+import { useState, use, useEffect } from 'react'
 import { Star, Heart, Share2, Truck, Shield, RotateCcw } from 'lucide-react'
 import {
   Line,
@@ -14,34 +17,59 @@ import {
   XAxis,
   YAxis,
   CartesianGrid,
-  Tooltip,
-  Legend,
   ResponsiveContainer,
 } from 'recharts'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
-import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-} from '@/components/ui/chart'
-import { PRODUCTS_DETAILS } from '@/lib/mock-products'
-
+import { Card, CardContent } from '@/components/ui/card'
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart'
 
 export default function ProductDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params)
-  const product = PRODUCTS_DETAILS[id] || PRODUCTS_DETAILS['1']
+  const { id: slug } = use(params)
+  const [product, setProduct] = useState<DetailViewModel | null>(null)
+  const [related, setRelated] = useState<ReturnType<typeof listItemToCardProps>[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [quantity, setQuantity] = useState(1)
-  const [selectedImage, setSelectedImage] = useState(product.image)
+  const [selectedImage, setSelectedImage] = useState('')
   const [isFavorite, setIsFavorite] = useState(false)
   const addToCart = useCartStore((state) => state.addToCart)
 
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    setError(null)
+    const decoded = decodeURIComponent(slug)
+
+    Promise.all([
+      shophubGetProductBySlug(decoded),
+      shophubGetRelatedProducts(decoded).catch(() => ({ success: true as const, data: [] })),
+    ])
+      .then(([detailRes, relatedRes]) => {
+        if (cancelled) return
+        const vm = detailToViewModel(detailRes.data)
+        setProduct(vm)
+        setRelated(relatedRes.data.map(listItemToCardProps))
+        setQuantity(1)
+      })
+      .catch((e: Error) => {
+        if (!cancelled) setError(e.message || 'Product not found')
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [slug])
+
+  useEffect(() => {
+    if (product) {
+      setSelectedImage(product.images[0] || product.image)
+    }
+  }, [product])
+
   const handleAddToCart = () => {
+    if (!product) return
     addToCart({
       id: product.id,
       name: product.name,
@@ -51,36 +79,36 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
     })
   }
 
-  const relatedProducts = [
-    {
-      id: '3',
-      name: 'Professional Camera Bag',
-      price: 129.99,
-      image: 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=500&h=500&fit=crop',
-      category: 'Accessories',
-    },
-    {
-      id: '4',
-      name: 'Mechanical Gaming Keyboard',
-      price: 159.99,
-      image: 'https://images.unsplash.com/photo-1587829191301-6d53e0a1f3f3?w=500&h=500&fit=crop',
-      category: 'Electronics',
-    },
-    {
-      id: '5',
-      name: 'Portable Power Bank',
-      price: 49.99,
-      image: 'https://images.unsplash.com/photo-1609091839311-d5365f9ff1c5?w=500&h=500&fit=crop',
-      category: 'Accessories',
-    },
-  ]
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Header />
+        <div className="mx-auto max-w-7xl px-4 py-24 text-center text-muted-foreground">
+          Loading product…
+        </div>
+      </div>
+    )
+  }
+
+  if (error || !product) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Header />
+        <div className="mx-auto max-w-7xl px-4 py-24 text-center">
+          <p className="text-lg text-muted-foreground">{error || 'Product not found'}</p>
+          <Link href="/products" className="mt-4 inline-block text-accent underline">
+            Back to products
+          </Link>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-background">
       <Header />
 
       <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-24 lg:px-8">
-        {/* Breadcrumb */}
         <div className="mb-8 flex gap-2 text-sm">
           <Link href="/" className="text-muted-foreground hover:text-foreground">
             Home
@@ -94,28 +122,31 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
         </div>
 
         <div className="grid gap-8 lg:grid-cols-2">
-          {/* Product Images */}
           <div className="space-y-4">
             <div className="relative aspect-square w-full overflow-hidden rounded-lg border border-border bg-muted flex items-center justify-center">
-              <Image
-                src={selectedImage}
-                alt={product.name}
-                fill
-                sizes="(max-width: 768px) 100vw, 50vw"
-                className="object-cover"
-                priority
-                loading="eager"
-                onError={(e) => {
-                  const img = e.target as HTMLImageElement
-                  img.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="400" height="400" viewBox="0 0 400 400"%3E%3Crect fill="%232a2a2a" width="400" height="400"/%3E%3Ctext x="50%25" y="50%25" font-size="32" fill="%23a0a0a0" text-anchor="middle" dominant-baseline="middle"%3EImage unavailable%3C/text%3E%3C/svg%3E'
-                }}
-              />
+              {selectedImage ? (
+                <Image
+                  src={selectedImage}
+                  alt={product.name}
+                  fill
+                  sizes="(max-width: 768px) 100vw, 50vw"
+                  className="object-cover"
+                  priority
+                  loading="eager"
+                  onError={(e) => {
+                    const img = e.target as HTMLImageElement
+                    img.src =
+                      'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="400" height="400" viewBox="0 0 400 400"%3E%3Crect fill="%232a2a2a" width="400" height="400"/%3E%3Ctext x="50%25" y="50%25" font-size="32" fill="%23a0a0a0" text-anchor="middle" dominant-baseline="middle"%3EImage unavailable%3C/text%3E%3C/svg%3E'
+                  }}
+                />
+              ) : null}
             </div>
-            {product.images && (
+            {product.images.length > 1 && (
               <div className="flex gap-2">
-                {product.images.map((img: string, idx: number) => (
+                {product.images.map((img, idx) => (
                   <button
                     key={idx}
+                    type="button"
                     onClick={() => setSelectedImage(img)}
                     className={`relative h-20 w-20 overflow-hidden rounded border-2 transition-colors flex-shrink-0 ${
                       selectedImage === img ? 'border-accent' : 'border-border'
@@ -128,8 +159,9 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
                       sizes="80px"
                       className="object-cover"
                       onError={(e) => {
-                        const img = e.target as HTMLImageElement
-                        img.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 80 80"%3E%3Crect fill="%232a2a2a" width="80" height="80"/%3E%3C/svg%3E'
+                        const el = e.target as HTMLImageElement
+                        el.src =
+                          'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 80 80"%3E%3Crect fill="%232a2a2a" width="80" height="80"/%3E%3C/svg%3E'
                       }}
                     />
                   </button>
@@ -138,16 +170,13 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
             )}
           </div>
 
-          {/* Product Info */}
           <div className="flex flex-col gap-6">
-            {/* Header */}
             <div>
               <p className="text-sm text-muted-foreground uppercase tracking-wider mb-2">
                 {product.category}
               </p>
               <h1 className="text-3xl font-bold mb-4">{product.name}</h1>
 
-              {/* Rating */}
               <div className="flex items-center gap-4">
                 <div className="flex items-center gap-1">
                   {[...Array(5)].map((_, i) => (
@@ -162,12 +191,11 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
                   ))}
                 </div>
                 <span className="text-sm text-muted-foreground">
-                  {product.rating} ({product.reviews} reviews)
+                  {product.rating} ({product.reviewCount} reviews)
                 </span>
               </div>
             </div>
 
-            {/* Price & Stock */}
             <div className="border-b border-t border-border py-4">
               <div className="flex items-baseline gap-4 mb-4">
                 <p className="text-3xl font-bold">${product.price.toFixed(2)}</p>
@@ -182,7 +210,6 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
               <p className="text-muted-foreground">{product.description}</p>
             </div>
 
-            {/* Quantity & Add to Cart */}
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium mb-2">Quantity</label>
@@ -195,11 +222,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
                     −
                   </Button>
                   <span className="w-8 text-center">{quantity}</span>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={() => setQuantity(quantity + 1)}
-                  >
+                  <Button variant="outline" size="icon" onClick={() => setQuantity(quantity + 1)}>
                     +
                   </Button>
                 </div>
@@ -230,7 +253,6 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
               </div>
             </div>
 
-            {/* Shipping & Returns */}
             <div className="space-y-3 border-t border-border pt-4">
               <div className="flex gap-3">
                 <Truck className="h-5 w-5 flex-shrink-0 text-accent" />
@@ -257,12 +279,11 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
           </div>
         </div>
 
-        {/* Features & Specifications */}
-        {product.features && (
+        {product.features && product.features.length > 0 && (
           <div className="mt-16 border-t border-border pt-8">
             <h2 className="text-2xl font-bold mb-8">Features</h2>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {product.features.map((feature: string, idx: number) => (
+              {product.features.map((feature, idx) => (
                 <div key={idx} className="flex gap-3">
                   <div className="h-5 w-5 rounded-full bg-accent flex-shrink-0 flex items-center justify-center">
                     <span className="text-xs font-bold text-accent-foreground">✓</span>
@@ -283,7 +304,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
                   {Object.entries(product.specifications).map(([key, value], idx) => (
                     <tr key={idx} className="border-b border-border last:border-b-0">
                       <td className="bg-muted px-4 py-3 font-semibold">{key}</td>
-                      <td className="px-4 py-3">{String(value)}</td>
+                      <td className="px-4 py-3">{value}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -292,8 +313,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
           </div>
         )}
 
-        {/* Price History Chart */}
-        {product.priceHistory && (
+        {product.priceHistory && product.priceHistory.length > 0 && (
           <div className="mt-16 border-t border-border pt-8">
             <h2 className="text-2xl font-bold mb-8">Price History (Last 12 Months)</h2>
             <Card className="bg-card border-border">
@@ -313,17 +333,22 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
                       margin={{ top: 5, right: 30, left: 0, bottom: 5 }}
                     >
                       <CartesianGrid strokeDasharray="3 3" stroke="#2a2a2a" />
-                      <XAxis 
-                        dataKey="month" 
+                      <XAxis
+                        dataKey="month"
                         stroke="#a0a0a0"
                         style={{ fontSize: '12px' }}
                       />
-                      <YAxis 
+                      <YAxis
                         stroke="#a0a0a0"
                         style={{ fontSize: '12px' }}
-                        label={{ value: 'Price ($)', angle: -90, position: 'insideLeft', style: { fill: '#a0a0a0' } }}
+                        label={{
+                          value: 'Price ($)',
+                          angle: -90,
+                          position: 'insideLeft',
+                          style: { fill: '#a0a0a0' },
+                        }}
                       />
-                      <ChartTooltip 
+                      <ChartTooltip
                         content={<ChartTooltipContent />}
                         formatter={(value) => {
                           const n = Number(value)
@@ -347,15 +372,16 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
           </div>
         )}
 
-        {/* Related Products */}
-        <div className="mt-16 border-t border-border pt-8">
-          <h2 className="text-2xl font-bold mb-8">Related Products</h2>
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {relatedProducts.map((p) => (
-              <ProductCard key={p.id} {...p} />
-            ))}
+        {related.length > 0 && (
+          <div className="mt-16 border-t border-border pt-8">
+            <h2 className="text-2xl font-bold mb-8">Related Products</h2>
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {related.map((p) => (
+                <ProductCard key={p.slug} {...p} />
+              ))}
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   )
